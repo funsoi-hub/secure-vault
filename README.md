@@ -56,7 +56,7 @@ The [OWASP Top 10 (2025)](https://owasp.org/Top10/2025/) is the industry's list 
 
 | OWASP risk | What I did | Proven by |
 |---|---|---|
-| **A01 Broken Access Control** | Every lookup is scoped to the signed-in user. Guessing someone else's note ID returns "not found", and IDs are random, not 1, 2, 3… | `test_users_cannot_read_or_change_each_others_notes` |
+| **A01 Broken Access Control** | Every lookup is scoped to the signed-in user. Guessing someone else's note ID returns "not found", and IDs are random, not 1, 2, 3... | `test_users_cannot_read_or_change_each_others_notes` |
 | **A02 Security Misconfiguration** | Strict browser security headers: no scripts at all (CSP), no framing, HTTPS-only (HSTS), no caching. The app refuses to start in production without real keys. | `test_security_headers_present` |
 | **A03 Software Supply Chain** | Exact dependency versions, automatic update PRs, and a CI gate that scans every dependency and the Docker image | [security workflow](.github/workflows/security.yml) |
 | **A04 Cryptographic Failures** | Argon2id for passwords, AES-256-GCM for data. Session and share tokens are stored only as hashes. | `test_notes_encrypted_at_rest` |
