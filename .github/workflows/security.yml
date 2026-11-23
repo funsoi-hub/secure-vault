@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   security:
-    uses: funsoi-hub/devsecops-pipeline/.github/workflows/security-gate.yml@20837ce8f51457cf3146fd998ec658ea6194618b # v1
+    uses: funsoi-hub/devsecops-pipeline/.github/workflows/security-gate.yml@1604430fa8b86efb899424b1b457d2e994f65a39 # v1
     permissions:
       contents: read
       security-events: write
@@ -32,4 +32,4 @@ jobs:
       container-env: |
         VAULT_ENV=development
         COOKIE_SECURE=false
-      pipeline-ref: 20837ce8f51457cf3146fd998ec658ea6194618b # v1
+      pipeline-ref: 1604430fa8b86efb899424b1b457d2e994f65a39 # v1
