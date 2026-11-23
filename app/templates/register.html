@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Create account · Secure Vault{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>Create an account</h1>
+  <form method="post" action="/register">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Email <input type="email" name="email" value="{{ email or '' }}" autocomplete="username" required maxlength="254"></label>
+    <label>Password <input type="password" name="password" autocomplete="new-password" required minlength="12" maxlength="128"></label>
+    <label>Confirm password <input type="password" name="confirm" autocomplete="new-password" required minlength="12" maxlength="128"></label>
+    <p class="muted small">At least 12 characters. A few random words makes a strong, memorable passphrase.</p>
+    <button type="submit">Create account</button>
+  </form>
+  <p class="muted">Already registered? <a href="/login">Sign in</a></p>
+</section>
+{% endblock %}

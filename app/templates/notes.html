@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Notes · Secure Vault{% endblock %}
+{% block content %}
+<div class="row heading">
+  <h1>Your notes</h1>
+  <a class="button" href="/notes/new">New note</a>
+</div>
+{% if notes %}
+<ul class="list">
+  {% for n in notes %}
+  <li><a href="/notes/{{ n.id }}">{{ n.title }}</a><span class="muted small">Updated {{ n.updated_at.strftime('%d %b %Y, %H:%M') }} UTC</span></li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted">No notes yet. Everything you write here is encrypted before it's saved.</p>
+{% endif %}
+{% endblock %}

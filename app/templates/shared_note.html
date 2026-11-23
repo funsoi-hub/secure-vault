@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Shared note · Secure Vault{% endblock %}
+{% block content %}
+<section class="card">
+  {% if note %}
+    <h1>{{ note.title }}</h1>
+    <pre class="note-body">{{ note.body }}</pre>
+    <p class="muted small">Views left on this link: {{ remaining }}. Reloading this page uses another view.</p>
+  {% else %}
+    <h1>Someone shared a note with you</h1>
+    <p class="muted">Opening it uses one of the link's limited views.</p>
+    <form method="post" action="/s/{{ token }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Reveal note</button>
+    </form>
+  {% endif %}
+</section>
+{% endblock %}

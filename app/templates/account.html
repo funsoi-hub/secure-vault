@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Account · Secure Vault{% endblock %}
+{% block content %}
+<h1>Account</h1>
+<section class="card">
+  <h2>Two-factor authentication</h2>
+  {% if user.totp_enabled %}
+    <p><span class="badge ok">On</span> Signing in needs a code from your authenticator app.</p>
+    <form method="post" action="/account/mfa/disable" class="row">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Password <input type="password" name="password" required autocomplete="current-password"></label>
+      <label>Current code <input name="code" inputmode="numeric" required maxlength="7"></label>
+      <button class="danger">Turn off</button>
+    </form>
+  {% else %}
+    <p><span class="badge warn">Off</span> Add a second factor so a stolen password isn't enough.</p>
+    <a class="button" href="/account/mfa">Set up two-factor</a>
+  {% endif %}
+</section>
+<section class="card">
+  <h2>Sessions</h2>
+  <form method="post" action="/account/sessions/revoke">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="secondary">Sign out everywhere</button>
+  </form>
+</section>
+<section class="card">
+  <h2>Recent security activity</h2>
+  <table>
+    <thead><tr><th>When (UTC)</th><th>Event</th><th>IP address</th></tr></thead>
+    <tbody>{% for e in events %}
+      <tr><td>{{ e.created_at.strftime('%d %b %Y, %H:%M') }}</td><td>{{ e.event.replace('_', ' ') }}</td><td class="mono">{{ e.ip }}</td></tr>
+    {% endfor %}</tbody>
+  </table>
+</section>
+{% endblock %}

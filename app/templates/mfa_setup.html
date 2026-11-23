@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Set up two-factor · Secure Vault{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>Set up two-factor</h1>
+  <ol>
+    <li>Scan this code with an authenticator app (Google Authenticator, Authy, 1Password…).</li>
+    <li>Enter the 6-digit code it shows.</li>
+  </ol>
+  <img class="qr" src="{{ qr }}" alt="QR code for your authenticator app" width="220" height="220">
+  <p class="muted small">Can't scan? Enter this key: <span class="mono">{{ secret }}</span></p>
+  <form method="post" action="/account/mfa">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Code <input name="code" inputmode="numeric" autocomplete="one-time-code" required maxlength="7"></label>
+    <button type="submit">Turn on two-factor</button>
+  </form>
+</section>
+{% endblock %}

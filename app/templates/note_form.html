@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if note and note.id else 'New' }} note · Secure Vault{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>{{ 'Edit note' if note and note.id else 'New note' }}</h1>
+  <form method="post" action="{{ '/notes/' ~ note.id ~ '/edit' if note and note.id else '/notes/new' }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Title <input name="title" value="{{ note.title if note else '' }}" required maxlength="200"></label>
+    <label>Note <textarea name="body" rows="14" maxlength="50000">{{ note.body if note else '' }}</textarea></label>
+    <div class="row">
+      <button type="submit">Save</button>
+      <a href="{{ '/notes/' ~ note.id if note and note.id else '/notes' }}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

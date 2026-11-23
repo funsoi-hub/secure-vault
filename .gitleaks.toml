@@ -1,0 +1,8 @@
+# Extends Gitleaks' default rules. The only exception is the fake passphrase the
+# test suite registers test users with: it is not a credential for anything.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fake test-user passphrase used by the test suite"
+regexes = ['''correct horse battery staple''']

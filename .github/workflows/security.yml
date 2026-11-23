@@ -1,0 +1,35 @@
+# Runs the reusable security gate from funsoi-hub/devsecops-pipeline.
+# The "security / gate" check is required by the main-branch ruleset, so a pull
+# request with any high-severity finding cannot be merged.
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1" # weekly: catch newly published CVEs in unchanged code
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  security:
+    uses: funsoi-hub/devsecops-pipeline/.github/workflows/security-gate.yml@782141280e6162d2570119fd3f578e100b86ba8a # v1
+    permissions:
+      contents: read
+      security-events: write
+    with:
+      source-dir: app
+      dockerfile: Dockerfile
+      run-dast: true
+      app-port: 8000
+      healthcheck-path: /healthz
+      dast-path: /login
+      # Throwaway settings for the scan container only. VAULT_ENV=development makes the
+      # app generate random keys; COOKIE_SECURE=false because ZAP talks plain http locally.
+      container-env: |
+        VAULT_ENV=development
+        COOKIE_SECURE=false
+      pipeline-ref: 782141280e6162d2570119fd3f578e100b86ba8a # v1
