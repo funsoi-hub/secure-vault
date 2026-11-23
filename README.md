@@ -82,6 +82,12 @@ COOKIE_SECURE=false uvicorn app.main:create_app --factory --reload
 
 Open http://127.0.0.1:8000, then run the tests with `pytest`.
 
+### Deploy your own (free)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/funsoi-hub/secure-vault)
+
+[`render.yaml`](render.yaml) creates the service with random keys stored by Render, not in git. On the free plan the app sleeps when idle and the demo data resets on restart.
+
 ### With Docker (production mode)
 
 ```bash

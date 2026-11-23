@@ -1,0 +1,21 @@
+# One-click deploy on Render: Dashboard -> New -> Blueprint -> pick this repo.
+# The free plan sleeps after 15 minutes idle and its disk is wiped on restart,
+# so the demo's data resets. That's fine (even good) for a public demo.
+services:
+  - type: web
+    name: secure-vault
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: VAULT_ENV
+        value: production
+      - key: VAULT_MASTER_KEY
+        generateValue: true   # random 256-bit value, stored by Render, never in git
+      - key: VAULT_SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: "*.onrender.com"
+      - key: DATABASE_URL
+        value: sqlite:////data/vault.db
