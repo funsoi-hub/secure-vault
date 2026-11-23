@@ -6,8 +6,12 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 FROM python:3.13-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 VAULT_ENV=production DATABASE_URL=sqlite:////data/vault.db
-# Pick up OS security fixes released since the base image was built
-RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+# Pick up OS security fixes released since the base image was built, then remove pip:
+# the app doesn't install anything at runtime, and pip's bundled libraries (urllib3,
+# msgpack, pkg_resources) were the only high-severity CVEs the security gate found.
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/* \
+    && python -m pip uninstall -y pip \
+    && rm -rf /usr/local/lib/python3.*/ensurepip /usr/local/bin/pip*
 # Run as an unprivileged user, never root
 RUN groupadd --system vault && useradd --system --gid vault --home /app --shell /usr/sbin/nologin vault \
     && mkdir -p /data && chown vault:vault /data
