@@ -5,30 +5,36 @@
 ![Python](https://img.shields.io/badge/python-3.13-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-An encrypted notes and file vault, built end to end with security designed in at every stage of the software development life cycle (SDLC), not bolted on afterwards.
+A place to keep the things you really don't want leaked (recovery codes, passwords, private documents), built so that even a stolen database gives an attacker nothing but noise.
 
 **Live demo:** _coming soon_ · **Threat model:** [secure-vault-threat-model](https://github.com/funsoi-hub/secure-vault-threat-model) · **CI security gate:** [devsecops-pipeline](https://github.com/funsoi-hub/devsecops-pipeline)
 
-![Note with share links](docs/screenshots/note-sharing.png)
+![A note with its share links](docs/screenshots/note-sharing.png)
+
+## Why I built this
+
+In my day-to-day security work I spend a lot of time *finding* problems in other people's applications: running SAST and DAST scans, reading reports, writing up fixes. I wanted to see the other side: build an application myself, make every security decision deliberately, and prove each one works.
+
+So I picked something where security is the whole point, a vault for secrets, and followed it through the full development life cycle: threat model first, then the code, then a pipeline that blocks anything risky from shipping.
 
 ## What it does
 
-- **Encrypted notes and files.** Everything a user stores (note titles, bodies, file names and contents) is encrypted with AES-256-GCM before it touches the database.
-- **Two-factor sign-in.** TOTP codes from any authenticator app, with replay protection.
-- **Expiring share links.** Share a note read-only with a link that expires after 1 hour to 7 days and a set number of views, and revoke it any time.
-- **Security activity log.** Users see every sign-in, failed attempt, share and download on their account page.
+- **Encrypted notes and files.** Everything you store is encrypted *before* it reaches the database, including titles and file names.
+- **Two-factor sign-in.** Works with any authenticator app (Google Authenticator, Authy, 1Password).
+- **Share links that expire.** Share a note read-only for 1 hour to 7 days, cap how many times it can be opened, and revoke it whenever you like.
+- **Security activity log.** You can see every sign-in, failed attempt, share and download on your account, with the IP address.
 
 ## How the encryption works
 
-Envelope encryption, the same pattern AWS KMS and Google Cloud KMS use:
+I used **envelope encryption**, the same idea AWS and Google Cloud use for their key management services:
 
 ```mermaid
 flowchart LR
-    ENV["VAULT_MASTER_KEY<br/>(environment / secret manager)"] -->|wraps| DEK["Per-user data key<br/>(random 256-bit, stored wrapped)"]
+    ENV["Master key<br/>(kept outside the database)"] -->|locks| DEK["Each user's own data key"]
     DEK -->|encrypts| N["Notes"]
     DEK -->|encrypts| F["Files"]
-    ENV -->|encrypts| T["TOTP secrets"]
-    subgraph DB["Database: only ciphertext"]
+    ENV -->|encrypts| T["2FA secrets"]
+    subgraph DB["Database: only scrambled data"]
         N
         F
         T
@@ -36,94 +42,120 @@ flowchart LR
     end
 ```
 
-- **One master key, many data keys.** A stolen database alone is useless: every data key is wrapped by a master key that lives only in the environment. Rotating the master key means re-wrapping small keys, not re-encrypting every note.
-- **AES-256-GCM with a fresh random nonce per encryption**, so tampering is detected rather than silently decrypted.
-- **Associated data binds each ciphertext to its owner and field** (`note:<user>:<note>:body`). Someone with database write access can't copy Alice's ciphertext into Mallory's row to read it. [There's a test for exactly that.](tests/test_vault.py)
+In plain terms:
 
-## Security controls, mapped to the OWASP Top 10:2025
+1. Every user gets their own random encryption key.
+2. That key is itself locked with a master key that **never touches the database**.
+3. So a stolen database is useless on its own: the attacker would also need the master key from the server's environment.
 
-| OWASP 2025 | Risk | How Secure Vault handles it | Test |
-|---|---|---|---|
-| A01 | Broken Access Control | Every query is scoped to the signed-in owner. Another user's ID returns 404, not 403, so IDs reveal nothing. IDs are random 128-bit values, not counters. | `test_users_cannot_read_or_change_each_others_notes` |
-| A02 | Security Misconfiguration | Strict CSP (`script-src 'none'`), HSTS, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store`. API docs disabled. Refuses to start in production without real keys. | `test_security_headers_present` |
-| A03 | Software Supply Chain Failures | Pinned dependencies, Dependabot, and a CI gate that scans dependencies and the container image. Every GitHub Action is pinned to a commit SHA. | [security gate](.github/workflows/security.yml) |
-| A04 | Cryptographic Failures | Argon2id password hashing, AES-256-GCM envelope encryption, keys from the environment, session and share tokens stored only as SHA-256 hashes. | `test_notes_encrypted_at_rest` |
-| A05 | Injection | SQLAlchemy parameterised queries only. Jinja2 auto-escaping plus a CSP that blocks all script. | `test_stored_xss_is_escaped` |
-| A06 | Insecure Design | Threat-modelled before building ([STRIDE + ATT&CK](https://github.com/funsoi-hub/secure-vault-threat-model)). Share links can't be burned by link-preview bots, because viewing needs a deliberate click (POST). | `test_share_link_respects_view_limit` |
-| A07 | Authentication Failures | TOTP MFA with replay protection. Account lockout after 5 failures. Per-IP rate limits. Identical errors and timing for unknown users. Session ID rotated at login and after MFA. Idle and absolute timeouts. | `test_mfa_required_after_enabling` |
-| A08 | Software or Data Integrity Failures | GCM authentication tags make tampered ciphertext fail closed. Signed double-submit CSRF tokens on every form, plus an `Origin` check. | `test_tampered_ciphertext_detected` |
-| A09 | Security Logging & Alerting Failures | Audit log of sign-ins, failures, lockouts, MFA changes, shares and downloads, with IP addresses, shown to the user. Passwords and secrets are never logged. | `test_account_locks_after_repeated_failures` |
-| A10 | Mishandling of Exceptional Conditions | Decryption errors fail closed with a generic message. Request size limits, upload size limits, and strict input validation on every field. | `test_oversized_request_rejected` |
+I also bound each piece of encrypted data to its owner. If someone with database access copied my encrypted note into their own account, decryption would fail instead of revealing it. [There's a test proving that.](tests/test_vault.py)
 
-There are 37 automated security tests in [`tests/`](tests/). Each control above is checked in CI on every change.
+## Security decisions, mapped to the OWASP Top 10
 
-## Security across the SDLC
+The [OWASP Top 10 (2025)](https://owasp.org/Top10/2025/) is the industry's list of the most common web app risks. Here's how I handled each one, with the test that proves it:
 
-| Stage | What was done |
+| OWASP risk | What I did | Proven by |
+|---|---|---|
+| **A01 Broken Access Control** | Every lookup is scoped to the signed-in user. Guessing someone else's note ID returns "not found", and IDs are random, not 1, 2, 3… | `test_users_cannot_read_or_change_each_others_notes` |
+| **A02 Security Misconfiguration** | Strict browser security headers: no scripts at all (CSP), no framing, HTTPS-only (HSTS), no caching. The app refuses to start in production without real keys. | `test_security_headers_present` |
+| **A03 Software Supply Chain** | Exact dependency versions, automatic update PRs, and a CI gate that scans every dependency and the Docker image | [security workflow](.github/workflows/security.yml) |
+| **A04 Cryptographic Failures** | Argon2id for passwords, AES-256-GCM for data. Session and share tokens are stored only as hashes. | `test_notes_encrypted_at_rest` |
+| **A05 Injection** | Parameterised database queries only, and auto-escaped HTML backed up by a "no scripts" policy | `test_stored_xss_is_escaped` |
+| **A06 Insecure Design** | Threat-modelled before building. Share links can't be "used up" by chat apps previewing them, because opening one needs a real click. | `test_share_link_respects_view_limit` |
+| **A07 Authentication Failures** | Two-factor sign-in with replay protection, lockout after 5 wrong passwords, rate limits, and identical errors whether or not an account exists | `test_mfa_required_after_enabling` |
+| **A08 Data Integrity Failures** | Tampered data fails to decrypt instead of being trusted. Every form is protected against cross-site request forgery. | `test_tampered_ciphertext_detected` |
+| **A09 Logging & Alerting Failures** | Security events are logged with IP addresses and shown to the user. Passwords and secrets are never logged. | `test_account_locks_after_repeated_failures` |
+| **A10 Mishandling Exceptional Conditions** | Errors fail closed with a generic message. Request size, upload size and every input are limited. | `test_oversized_request_rejected` |
+
+All **37 security tests** run automatically on every change.
+
+## Security at every stage of development
+
+| Stage | What I did |
 |---|---|
-| **Requirements** | Security requirements written up front: data encrypted at rest, MFA, owner-only access, revocable sharing, auditability. |
-| **Design** | [Threat model](https://github.com/funsoi-hub/secure-vault-threat-model) with a data-flow diagram, STRIDE per component, and attack paths mapped to MITRE ATT&CK. Each threat links to the control that addresses it. |
-| **Build** | Secure defaults in code (above). Small dependency set, every version pinned. Ruff with flake8-bandit rules in the editor and CI. |
-| **Test** | 37 security unit tests, plus a [reusable CI security gate](https://github.com/funsoi-hub/devsecops-pipeline): Semgrep + Bandit (SAST), Gitleaks (secrets), Trivy (dependencies, image, Dockerfile) and OWASP ZAP (DAST). **A high-severity finding fails the build, and the ruleset blocks merging into `main`.** |
-| **Release** | Multi-stage Docker image running as a non-root user, OS packages patched at build time, health check, no server banner. |
-| **Operate** | Weekly scheduled scan catches new CVEs in unchanged code. Dependabot opens update PRs. The audit log gives users visibility of account activity. |
+| **Plan** | Wrote the security requirements first: encrypted at rest, two-factor, owner-only access, revocable sharing, a full audit trail |
+| **Design** | Built a [threat model](https://github.com/funsoi-hub/secure-vault-threat-model) before coding: 35 threats, each linked to the control that stops it |
+| **Build** | Secure defaults in code, a small set of dependencies, every version pinned |
+| **Test** | 37 security tests, plus my [CI security gate](https://github.com/funsoi-hub/devsecops-pipeline): code scanning, secret scanning, dependency and container scanning, and a live attack scan with OWASP ZAP |
+| **Release** | A small Docker image that runs as a non-root user, with OS patches applied and no package manager inside |
+| **Operate** | Weekly re-scans catch newly published vulnerabilities, and Dependabot opens update PRs |
 
-## Run it locally
+### The gate caught something on day one
+
+On its very first run, my security gate **blocked this repo** over 5 high-severity vulnerabilities in the Docker image. They weren't in my code; they were inside pip's own bundled libraries in the Python base image. The app never installs anything at runtime, so I removed pip from the final image entirely. The gate went green, and the image got smaller and safer in the process.
+
+## Try it yourself
+
+**Run it locally** (needs Python 3.12+):
 
 ```bash
-git clone https://github.com/funsoi-hub/secure-vault.git && cd secure-vault
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+git clone https://github.com/funsoi-hub/secure-vault.git
+cd secure-vault
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
 
-# Plain-http dev mode: random keys, non-Secure cookies
+# Local development mode (plain http, throwaway keys)
 COOKIE_SECURE=false uvicorn app.main:create_app --factory --reload
 # Windows PowerShell:  $env:COOKIE_SECURE="false"; uvicorn app.main:create_app --factory --reload
 ```
 
-Open http://127.0.0.1:8000, then run the tests with `pytest`.
+Then open http://127.0.0.1:8000. Run the tests with `pytest`.
 
-### Deploy your own (free)
+**Deploy your own copy for free:**
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/funsoi-hub/secure-vault)
 
-[`render.yaml`](render.yaml) creates the service with random keys stored by Render, not in git. On the free plan the app sleeps when idle and the demo data resets on restart.
+This creates the service with random keys stored by Render, not in the code. On the free plan the app sleeps when idle and the demo data resets on restart.
 
-### With Docker (production mode)
+**Run it with Docker (production mode):**
 
 ```bash
-cp .env.example .env    # then generate the two keys as described in the file
+cp .env.example .env        # then generate the two keys as described in the file
 docker build -t secure-vault .
 docker run --env-file .env -p 8000:8000 -v vault-data:/data secure-vault
 ```
 
-Production needs HTTPS in front (most hosts provide it), because session cookies are `Secure`.
+## Screenshots
+
+| Notes | Setting up two-factor | Security activity |
+|---|---|---|
+| ![Notes list](docs/screenshots/notes.png) | ![Two-factor setup](docs/screenshots/mfa-setup.png) | ![Security activity log](docs/screenshots/security-activity.png) |
+
+## What I learned
+
+- **Encryption is mostly about key management.** AES itself is the easy part. Deciding where keys live, how they're wrapped and how they'd be rotated is where the real design work is.
+- **"It works" isn't the same as "it's secure".** Writing a test for each control forced me to think like an attacker: what happens if I change this ID, replay this code, or swap this data?
+- **Small details matter.** Things like chat apps "opening" links to show previews, or share tokens leaking through the `Referer` header, only surfaced because I threat-modelled first.
+
+## Known limitations
+
+I'd rather be upfront about these than hide them:
+
+- **The server can decrypt your data**, because it holds the master key. That protects against a database leak, but not against someone who fully controls the server. Encrypting in the browser (end-to-end) is the next big step.
+- **Rate limits are kept in memory**, so they only apply per server process. Running more instances would need a shared store like Redis.
+- **The sign-up form reveals whether an email is already registered.** It's rate-limited, and the sign-in form doesn't reveal it.
+
+## What's next
+
+- [ ] End-to-end encryption in the browser
+- [ ] Email verification and password reset
+- [ ] Ship the audit log to tamper-proof external storage
 
 ## Project layout
 
 ```
 app/
-  main.py       routes, middleware, CSRF, access checks
-  security.py   Argon2id, sessions, TOTP, rate limiting, audit log
+  main.py       pages, access checks, CSRF protection
+  security.py   passwords, sessions, two-factor, rate limiting, audit log
   crypto.py     envelope encryption (AES-256-GCM)
-  models.py     database models (ciphertext only)
-  config.py     settings from environment, fail-closed in production
-tests/          37 security-focused tests
+  models.py     database tables (encrypted data only)
+  config.py     settings, which refuse to start without keys in production
+tests/          37 security tests
 ```
 
-## Known limitations
+---
 
-These are on purpose, documented rather than hidden:
+Built by **Funso Isola** · [LinkedIn](https://linkedin.com/in/funisola) · [More projects](https://github.com/funsoi-hub)
 
-- **Rate limits are in memory**, so they apply per process. With several workers, move them to Redis.
-- **The server can decrypt user data**, because it holds the master key. That protects against a database leak, not against a fully compromised server. End-to-end (client-side) encryption is the next step and is on the roadmap.
-- **Registration reveals whether an email is already registered.** This is accepted and rate-limited. The login form doesn't reveal it.
-
-## Screenshots
-
-| Notes | Two-factor setup | Security activity |
-|---|---|---|
-| ![](docs/screenshots/notes.png) | ![](docs/screenshots/mfa-setup.png) | ![](docs/screenshots/security-activity.png) |
-
-## Licence
-
-MIT. See [LICENSE](LICENSE). Found a vulnerability? See [SECURITY.md](SECURITY.md).
+Found a security issue? See [SECURITY.md](SECURITY.md). Licensed under [MIT](LICENSE).
