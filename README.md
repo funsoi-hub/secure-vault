@@ -7,7 +7,7 @@
 
 A place to keep the things you really don't want leaked (recovery codes, passwords, private documents), built so that even a stolen database gives an attacker nothing but noise.
 
-**Live demo:** _coming soon_ · **Threat model:** [secure-vault-threat-model](https://github.com/funsoi-hub/secure-vault-threat-model) · **CI security gate:** [devsecops-pipeline](https://github.com/funsoi-hub/devsecops-pipeline)
+**Live demo:** [secure-vault-zw2j.onrender.com](https://secure-vault-zw2j.onrender.com) (free hosting: the first load after a quiet spell can take up to a minute, and demo data resets on restart) · **Threat model:** [secure-vault-threat-model](https://github.com/funsoi-hub/secure-vault-threat-model) · **CI security gate:** [devsecops-pipeline](https://github.com/funsoi-hub/devsecops-pipeline)
 
 ![A note with its share links](docs/screenshots/note-sharing.png)
 
